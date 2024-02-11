@@ -46,7 +46,7 @@ ENV STEAM_BRANCH="public"
 ENV STEAM_PASSWORD=
 ENV STEAM_USERNAME=
 ENV STEAM_VALIDATE=1
-ENV WORKSHOP_MODS=
+ENV WORKSHOP_MODS=mods.html
 
 EXPOSE 2302/udp
 EXPOSE 2303/udp
@@ -56,10 +56,11 @@ EXPOSE 2306/udp
 
 WORKDIR /arma3
 
-VOLUME /steamcmd
+VOLUME /arma3
 
 STOPSIGNAL SIGINT
 
 COPY *.py /
+COPY /shared/arma3/ /arma3/
 
 CMD ["python3","/a3update.py"]

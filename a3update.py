@@ -123,25 +123,28 @@ def lowercase_workshop_dir(path: str):
 
 def check_workshop_mod(mod_id: str):
     response = request.urlopen("{}/{}".format(WORKSHOP_CHANGELOG_URL, mod_id)).read().decode("utf-8")
-    mod_name = MOD_NAME_REGEX.search(response).group(1)
-    mod_last_updated = LAST_UPDATED_REGEX.search(response)
-    path = "{}/{}".format(A3_STEAM_WORKSHOP_DIR, mod_id)
-    WORKSHOP_MODS[mod_name] = mod_id
+    varTest = MOD_NAME_REGEX.search(response)
+    if varTest != None:
+        mod_name = varTest.group(1)
 
-    if os.path.isdir(path) and mod_last_updated:
-        updated_at = datetime.fromtimestamp(int(mod_last_updated.group(1)))
-        created_at = datetime.fromtimestamp(os.path.getctime(path))
-        if (updated_at >= created_at or os.environ["FORCE_DOWNLOAD_WORKSHOP"] == '1'):
-            # Delete mod directory for re download
-            shutil.rmtree(path)
-    
-    if not os.path.isdir(path):
-        print("Update required for \"{}\" ({})".format(mod_name, mod_id))
-        WORKSHOP_UPDATE_MODS.append(mod_id)
-    else:
-        print("No update required for \"{}\" ({})... SKIPPING".format(mod_name, mod_id))
-    # Copy keys here so it's easier to see the workshop mod that has missing keys
-    copy_mod_keys(path)
+        mod_last_updated = LAST_UPDATED_REGEX.search(response)
+        path = "{}/{}".format(A3_STEAM_WORKSHOP_DIR, mod_id)
+        WORKSHOP_MODS[mod_name] = mod_id
+
+        if os.path.isdir(path) and mod_last_updated:
+            updated_at = datetime.fromtimestamp(int(mod_last_updated.group(1)))
+            created_at = datetime.fromtimestamp(os.path.getctime(path))
+            if (updated_at >= created_at or os.environ["FORCE_DOWNLOAD_WORKSHOP"] == '1'):
+                # Delete mod directory for re download
+                shutil.rmtree(path)
+        
+        if not os.path.isdir(path):
+            print("Update required for \"{}\" ({})".format(mod_name, mod_id))
+            WORKSHOP_UPDATE_MODS.append(mod_id)
+        else:
+            print("No update required for \"{}\" ({})... SKIPPING".format(mod_name, mod_id))
+        # Copy keys here so it's easier to see the workshop mod that has missing keys
+        copy_mod_keys(path)
 
 
 # builds the steam cli command to download multiple workshop mods at once and fixes the file paths after
