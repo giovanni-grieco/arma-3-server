@@ -24,7 +24,7 @@ Allows for caching steam, Arma3, and workshop mods install OR downloading any (o
 | STEAM_USERNAME          | Y        |               | Steam user used to login to steamcmd, must own Arma3.
 | STEAM_VALIDATE          | N        | 1             | Validates files after Steam download
 | WORKSHOP_MODS           | N        |               | URL or file path to load mods
-| CHECK_MODS              | Y        |               | Integer flag between [0,1] used to enable the checking of new mods in the modlist or validation of old ones. Putting it to 0 means faster startup.
+| CHECK_MODS              | Y        |               | Integer flag between [0,1] used to enable the checking of new mods in the modlist or validation of old ones. Putting it to 0 means faster startup but it won't download any mods and it won't validate existing ones.
 | DOWNLOAD_ATTEMPTS       |Y         |               | Integer value between [1,MAX_INT] that specifies how many times the steamcmd workshop mod download has to be attempted. With big mods, sometimes steamcmd times out skipping to the next download. With this in place it will do DOWNLOAD_ATTEMPTS iterations of download so that hopefully everything is downloaded after all the attempts. Suggested value is 2.
 
 
