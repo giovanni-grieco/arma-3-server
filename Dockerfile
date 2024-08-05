@@ -60,7 +60,7 @@ EXPOSE 2306/udp
 
 WORKDIR /arma3
 
-VOLUME /arma3
+VOLUME /steamcmd
 
 STOPSIGNAL SIGINT
 
