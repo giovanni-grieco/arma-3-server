@@ -41,6 +41,8 @@ def debug(message: str):
 # Print all environment variables.
 debug(os.environ)
 
+CHECK_MODS= int(os.environ["CHECK_MODS"])
+DOWNLOAD_ATTEMPTS= int(os.environ["DOWNLOAD_ATTEMPTS"])
 
 #region Configuration
 STEAM_CMD_DOWNLOAD = 'https://steamcdn-a.akamaihd.net/client/installer/steamcmd_linux.tar.gz'
@@ -75,11 +77,28 @@ def log(msg: str):
     print(msg)
     print("{{0:=<{}}}".format(len(msg)).format(""))
 
+def count_sub_directories(rootPath: str):
+    counter = 0
+    for file in os.listdir(rootPath):
+        potentialDirectory = os.path.join(rootPath, file)
+        if(os.path.isdir(potentialDirectory)):
+            counter = counter+1
+    return counter
+
 
 def call_steamcmd(params: str):
     debug('steamcmd {}'.format(params))
     os.system("{} {}".format(STEAM_CMD, params))
     print("")
+
+def call_steamcmd_script(file: str):
+    with open('script.txt', 'w') as script_file:
+        script_file.write(file)
+    #create and save textfile name script.txt with the contents of the file: str
+    os.system("cat script.txt")
+    script_path= os.path.abspath('script.txt')
+    os.system("{} {}".format(STEAM_CMD, '+runscript {}'.format(script_path)))
+    debug('Executed steamcmd with script.txt.')
 
 
 def read_config_values(config_path):
@@ -122,25 +141,9 @@ def lowercase_workshop_dir(path: str):
 
 
 def check_workshop_mod(mod_id: str):
-    response = request.urlopen("{}/{}".format(WORKSHOP_CHANGELOG_URL, mod_id)).read().decode("utf-8")
-    mod_name = MOD_NAME_REGEX.search(response).group(1)
-    mod_last_updated = LAST_UPDATED_REGEX.search(response)
-    path = "{}/{}".format(A3_STEAM_WORKSHOP_DIR, mod_id)
-    WORKSHOP_MODS[mod_name] = mod_id
-
-    if os.path.isdir(path) and mod_last_updated:
-        updated_at = datetime.fromtimestamp(int(mod_last_updated.group(1)))
-        created_at = datetime.fromtimestamp(os.path.getctime(path))
-        if (updated_at >= created_at or os.environ["FORCE_DOWNLOAD_WORKSHOP"] == '1'):
-            # Delete mod directory for re download
-            shutil.rmtree(path)
-    
-    if not os.path.isdir(path):
-        print("Update required for \"{}\" ({})".format(mod_name, mod_id))
-        WORKSHOP_UPDATE_MODS.append(mod_id)
-    else:
-        print("No update required for \"{}\" ({})... SKIPPING".format(mod_name, mod_id))
-    # Copy keys here so it's easier to see the workshop mod that has missing keys
+    path = "{}/{}".format(A3_STEAM_WORKSHOP_DIR, mod_id)        
+    print("Checking \"{}\"".format(mod_id))
+    WORKSHOP_UPDATE_MODS.append(mod_id)
     copy_mod_keys(path)
 
 
@@ -159,8 +162,32 @@ def download_updated_workshop_mods():
         )
     if os.environ["STEAM_VALIDATE"] == '1':
         steam_cmd_params += " validate"
-    steam_cmd_params += " +quit"
+    steam_cmd_params += ' +quit'
     call_steamcmd(steam_cmd_params)
+    
+    # Fix paths to lowercase after downloading
+    debug("Fixing any filepaths of workshop mods...")
+    for mod_id in WORKSHOP_UPDATE_MODS:
+        path = "{}/{}".format(A3_STEAM_WORKSHOP_DIR, mod_id)
+        lowercase_workshop_dir(path)
+
+def download_updated_workshop_mods_script():
+    if len(WORKSHOP_UPDATE_MODS) == 0:
+        debug("No workshop mods needed to be downloaded!")
+        return
+    debug("Starting download of updated workshop mods...")
+    steam_cmd_params = "force_install_dir {}\n".format(A3_SERVER_DIR)
+    steam_cmd_params += "login {} {}\n".format(STEAM_USER, STEAM_PASS)
+    for mod_id in WORKSHOP_UPDATE_MODS:
+        steam_cmd_params += "workshop_download_item {} {}".format(A3_WORKSHOP_ID, mod_id)
+        if os.environ["STEAM_VALIDATE"] == '1':
+            steam_cmd_params += " validate\n"
+        else:
+            steam_cmd_params += "\n"
+    
+    steam_cmd_params += 'quit'
+    call_steamcmd_script(steam_cmd_params)
+    
     # Fix paths to lowercase after downloading
     debug("Fixing any filepaths of workshop mods...")
     for mod_id in WORKSHOP_UPDATE_MODS:
@@ -169,27 +196,33 @@ def download_updated_workshop_mods():
 
 
 def check_workshop_mods():
-    mod_file = os.environ["WORKSHOP_MODS"]
-    if (mod_file == ''):
-        debug("WORKSHOP_MODS env variable not set, nothing to do.")
-        return
-    if (mod_file.startswith("http")):
-        with open("preset.html", "wb") as f:
-            f.write(request.urlopen(mod_file).read())
-        mod_file = "preset.html"
-    if not os.path.isfile(mod_file):
-        raise Exception('\n'.join([
-            'Unable to load WORKSHOP_MODS file!',
-            'The WORKSHOP_MODS file should be added to the volume in the arma directory'
-        ]))
-    with open(mod_file) as f:
-        html = f.read()
-        matches = re.finditer(WORKSHOP_ID_REGEX, html)
-        for _, match in enumerate(matches, start=1):
-            mod_id = match.group(1)
-            check_workshop_mod(mod_id)
-    download_updated_workshop_mods()
-    debug("Workshop mods ready\n{}".format(WORKSHOP_MODS))
+    for i in range(DOWNLOAD_ATTEMPTS):
+        debug("iteration {}".format(i))
+        mod_file = os.environ["WORKSHOP_MODS"]
+        if (mod_file == ''):
+            debug("WORKSHOP_MODS env variable not set, nothing to do.")
+            return
+        if (mod_file.startswith("http")):
+            with open("preset.html", "wb") as f:
+                f.write(request.urlopen(mod_file).read())
+            mod_file = "preset.html"
+        if not os.path.isfile(mod_file):
+            raise Exception('\n'.join([
+                'Unable to load WORKSHOP_MODS file!',
+                'The WORKSHOP_MODS file should be added to the volume in the arma directory'
+            ]))
+        with open(mod_file) as f:
+            html = f.read()
+            matches = re.finditer(WORKSHOP_ID_REGEX, html)
+            for _, match in enumerate(matches, start=1):
+                mod_id = match.group(1)
+                check_workshop_mod(mod_id)
+        download_updated_workshop_mods_script()
+        debug("Workshop mods ready\n{}".format(WORKSHOP_MODS))
+    debug("Fixing any filepaths of workshop mods...")
+    for mod_id in WORKSHOP_MODS.values():
+        path = "{}/{}".format(A3_STEAM_WORKSHOP_DIR, mod_id)
+        lowercase_workshop_dir(path)
 
 
 def load_mods_from_dir(directory: str, copyKeys: bool, mod_type = 'mod'): # Loads both local and workshop mods
@@ -216,8 +249,11 @@ if os.path.isdir(A3_KEYS_DIR):
 log("Updating A3 server ({})".format(A3_SERVER_ID))
 update_server()
 
-log("Checking for updates for workshop mods...")
-check_workshop_mods()
+if(CHECK_MODS == 1):
+    log("Checking for updates for workshop mods...")
+    check_workshop_mods()
+else:
+    log("Skipping mods check...")
 
 log("Launching Arma3-server...")
 config_path = '{}/configs/{}'.format(A3_SERVER_DIR, os.environ["ARMA_CONFIG"])
@@ -225,7 +261,7 @@ launch = '{} -limitFPS={} -world={} -config="{}"'.format(
     os.environ["ARMA_BINARY"],
     os.environ["ARMA_LIMITFPS"],
     os.environ["ARMA_WORLD"],
-    config_path
+    config_path,
 )
 
 if os.path.isdir(A3_STEAM_WORKSHOP_DIR):
